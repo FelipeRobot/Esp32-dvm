@@ -1,0 +1,19 @@
+# Entorno de compilacion del firmware.
+# Sin acceso USB por diseno: la carga y el monitor serie se hacen desde el host.
+services:
+  build:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        # UID/GID del usuario del host: los artefactos de .pio/ quedan
+        # propiedad del mismo usuario y la carga desde el host no da
+        # problemas de permisos. En CI se exportan UID/GID explicitamente.
+        USER_UID: ${UID:-1000}
+        USER_GID: ${GID:-1000}
+    image: esp32-electrical-monitor:dev
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    # Comando por defecto: compilar el firmware
+    command: pio run

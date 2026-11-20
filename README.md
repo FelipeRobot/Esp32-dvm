@@ -67,22 +67,26 @@ ESP32 GND ─── GND (INA226)        ESP32 GPIO22 ─── SCL (INA226)
 
 ## Dependencias
 
-Gestionadas automáticamente por PlatformIO vía `lib_deps`:
+Todas las dependencias tienen versión fijada para reproducibilidad (imagen
+base, PlatformIO Core, plataforma y librerías). La compilación se hace en el
+contenedor Docker (ver "Entorno de desarrollo"); PlatformIO gestiona la
+librería vía `lib_deps`:
 
 | Librería | Versión | Uso |
 |---|---|---|
-| [INA226_WE](https://github.com/wollewald/INA226_WE) | `^1.3.0` | Comunicación y calibración del INA226 |
+| [INA226_WE](https://github.com/wollewald/INA226_WE) | `~1.3.0` (fijada) | Comunicación y calibración del INA226 |
 
 La versión 1.3.0 es importante: renombra los enums con prefijo `INA226_` y
 ofrece `setResistorRange()` (la antigua `setCurrentRange()` está deprecada).
 
-Instalación manual equivalente: `pio lib install "wollewald/INA226_WE@^1.3.0"`
+Instalación manual equivalente: `pio lib install "wollewald/INA226_WE@~1.3.0"`
 
 ## Configuración de PlatformIO
 
 | Parámetro | Valor |
 |---|---|
-| Plataforma | `espressif32` |
+| PlatformIO Core | `6.2.0` (fijado en la imagen Docker) |
+| Plataforma | `espressif32@8.0.0` (fijada) |
 | Board | `esp32dev` (ESP32 DevKit clásico) |
 | Framework | `arduino` |
 | Estándar C++ | `gnu++17` |
@@ -105,18 +109,132 @@ verificarse físicamente antes de fiarse de las lecturas.
 Opcional: si al contrastar con un multímetro calibrado hay una desviación
 constante, aplicar `setCorrectionFactor()` en `INA226Sensor.cpp`.
 
-## Compilación y carga
+## Entorno de desarrollo (Docker)
+
+Toda la compilación se hace en un contenedor reproducible: en una máquina
+limpia basta con instalar **Docker** (y `git` para clonar). No hace falta
+instalar PlatformIO ni toolchains en el host.
+
+### Requisitos del host
+
+| Herramienta | Mínimo | Uso |
+|---|---|---|
+| Docker Engine + Compose v2 | 24+ (Linux) | Compilar el firmware |
+| Docker Desktop | Última estable (macOS / Windows) | Compilar el firmware |
+| git | Reciente | Clonar el repositorio |
+| PlatformIO CLI (opcional) | 6.2.0 | Solo para cargar y monitorizar desde el host |
+
+### Inicio del entorno
 
 ```bash
-# Compilar (descarga toolchain y librerías la primera vez)
-pio run
+git clone <url-del-repositorio>
+cd esp32-dvm
 
-# Cargar en el ESP32 conectado por USB
-pio run -t upload
+# 1. Construir la imagen (la primera vez descarga ~2 GB de toolchain; tarda varios minutos)
+make image            # o: docker compose build
 
-# Monitor serie (115200 baud)
-pio device monitor
+# 2. Compilar el firmware
+make build            # o: docker compose run --rm build pio run
 ```
+
+La imagen fija todas las versiones (imagen base por digest, PlatformIO Core
+6.2.0, plataforma `espressif32@8.0.0`, librerías en `platformio.ini`): dos
+máquinas distintas producen binarios equivalentes.
+
+### Comandos unificados
+
+| Comando | Acción |
+|---|---|
+| `make image` | Construye la imagen Docker |
+| `make build` | Compila el firmware en el contenedor |
+| `make clean` | Limpia los artefactos de compilación (`.pio/`) |
+| `make test` | Ejecuta las pruebas (todavía no hay ninguna definida) |
+| `make upload` | Carga el firmware desde el **host** |
+| `make monitor` | Monitor serie (115200 baud) desde el **host** |
+| `make shell` | Shell dentro del contenedor |
+
+Sin `make` (Windows sin WSL), los equivalentes directos:
+
+```bash
+docker compose build                              # make image
+docker compose run --rm build pio run             # make build
+docker compose run --rm build pio run -t clean    # make clean
+docker compose run --rm build bash                # make shell
+```
+
+### Carga del firmware y monitor serie (desde el host)
+
+El acceso USB **no es obligatorio desde Docker**: la carga y el monitor serie
+se ejecutan desde el sistema anfitrión, evitando permisos y drivers dentro
+del contenedor.
+
+Opción A — PlatformIO CLI en el host (recomendada):
+
+```bash
+pip install platformio==6.2.0
+pio run -t upload      # o: make upload
+pio device monitor     # o: make monitor
+```
+
+Opción B — solo esptool (más ligero, sin PlatformIO completo):
+
+```bash
+pip install esptool
+esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 460800 \
+  write_flash 0x10000 .pio/build/esp32dev/firmware.bin
+```
+
+La opción B solo escribe la aplicación: exige que el ESP32 ya tenga el
+bootloader y las particiones grabados por una carga completa previa
+(`pio run -t upload`).
+
+### Puerto serie por sistema operativo
+
+| Sistema | Puerto | Notas |
+|---|---|---|
+| Linux | `/dev/ttyUSB0` (o `ttyACM0`) | Añadir el usuario al grupo `dialout` (Debian/Ubuntu) o `uucp` (Arch): `sudo usermod -aG dialout $USER` y reabrir sesión |
+| macOS | `/dev/cu.usbserial-*` | Instalar el driver del chip USB-serial: CP210x (la mayoría de DevKits) o CH340 (clones) |
+| Windows | `COMx` (Administrador de dispositivos) | Instalar el driver CP210x/CH340; el número aparece en "Puertos (COM y LPT)" |
+
+Para indicar el puerto: `pio run -t upload --upload-port /dev/ttyUSB0` y
+`pio device monitor -p /dev/ttyUSB0`.
+
+*Nota avanzada*: también es posible pasar el dispositivo USB al contenedor
+(`docker compose run --rm --device /dev/ttyUSB0 build bash`), pero no es el
+flujo recomendado por los permisos que exige en cada sistema.
+
+### Solución de problemas
+
+| Síntoma | Causa habitual | Solución |
+|---|---|---|
+| `docker: permission denied` | Usuario fuera del grupo `docker` | `sudo usermod -aG docker $USER` y reabrir sesión (o Docker rootless) |
+| `make image` muy lento la primera vez | Descarga ~2 GB de toolchain | Normal: ocurre una vez por versión fijada |
+| Falta espacio en disco en `make image` | Toolchains + cachés de capas | Liberar varios GB; en Docker Desktop revisar "Resources" |
+| `No such port /dev/ttyUSB0` | Cable, conector o driver | `dmesg | grep tty` tras conectar; revisar driver CP210x/CH340 |
+| `Permission denied /dev/ttyUSB0` | Falta el grupo de dialout | `sudo usermod -aG dialout $USER` (Linux) y reabrir sesión |
+| Monitor: "puerto ocupado" | Otro monitor/IDE abierto | Cerrar el otro proceso |
+| `make` no existe (Windows) | `make` no viene con Windows | Usar los comandos `docker compose` equivalentes (o WSL/Git Bash) |
+| El CI falla en `docker compose build` | Alguna versión fijada retirada del registro | Actualizar pins según "Actualización de dependencias" |
+
+### Actualización de dependencias
+
+Las dependencias se actualizan a propósito, nunca implícitamente:
+
+1. Comprobar versiones nuevas dentro del contenedor:
+   `docker compose run --rm build pio pkg outdated`
+2. Editar los pins: `platformio.ini` (plataforma/librerías) y
+   `docker/Dockerfile` (digest de la imagen base, `PLATFORMIO_VERSION`).
+3. Reconstruir y compilar: `make image && make build`.
+4. Si cambia la imagen base, verificar el digest nuevo en Docker Hub.
+5. Commit con los cambios de pins.
+
+## Integración continua
+
+`.github/workflows/ci.yml` ejecuta en cada push (a `master` o `feature/**`) y
+pull request el **mismo procedimiento local**: construye la imagen y compila
+con `docker compose run --rm build pio run`. El paso de pruebas queda
+preparado para activarse cuando exista un directorio `test/`. El primer build
+en CI tarda varios minutos (sin caché de imagen entre ejecuciones).
 
 ## Salida de ejemplo
 
@@ -152,16 +270,25 @@ estado indica la causa (no detectado, error de comunicación, overflow).
 ## Estructura del código
 
 ```text
-src/
-├── main.cpp                          # init, coordinación, salida Serial
-├── config/
-│   └── HardwareConfig.h              # pines, bus, calibración (un solo lugar)
-├── drivers/
-│   ├── INA226Sensor.h/.cpp           # wrapper del INA226_WE + gestión de errores
-├── models/
-│   └── ElectricalMeasurement.h       # estructura de datos de la medición
-└── services/
-    ├── MeasurementService.h/.cpp     # adquisición periódica y recuperación
+├── platformio.ini                    # board, framework, versiones fijadas
+├── Makefile                          # comandos unificados (Docker + host)
+├── docker-compose.yml                # servicio de compilación
+├── docker/
+│   └── Dockerfile                    # imagen reproducible (versiones fijadas)
+├── .devcontainer/
+│   └── devcontainer.json             # VS Code Dev Containers
+├── .github/workflows/
+│   └── ci.yml                        # CI: mismo procedimiento que local
+└── src/
+    ├── main.cpp                      # init, coordinación, salida Serial
+    ├── config/
+    │   └── HardwareConfig.h          # pines, bus, calibración (un solo lugar)
+    ├── drivers/
+    │   ├── INA226Sensor.h/.cpp       # wrapper del INA226_WE + gestión de errores
+    ├── models/
+    │   └── ElectricalMeasurement.h   # estructura de datos de la medición
+    └── services/
+        ├── MeasurementService.h/.cpp # adquisición periódica y recuperación
 ```
 
 - `main.cpp` es solo la raíz de composición y la presentación.
@@ -185,6 +312,9 @@ biblioteca y en su código de error I2C (`getI2cErrorCode()`).
 
 - **Sin prueba en hardware realizada**: el código compila, pero no se ha
   verificado físicamente contra un módulo real en el momento de escribirlo.
+- La imagen Docker tampoco se ha validado localmente en el momento de
+  crearla (la máquina de desarrollo no tenía Docker instalado); el workflow
+  de CI la valida en cada push.
 - Los valores de calibración son provisionales hasta medir el shunt real.
 - `getI2cErrorCode()` de la librería refleja solo el último acceso a registro;
   es suficiente para invalidar lecturas, pero el código numérico concreto
@@ -199,7 +329,8 @@ biblioteca y en su código de error I2C (`getI2cErrorCode()`).
 1. Verificar el shunt del módulo con multímetro (ver tabla de calibración) y
    actualizar `SHUNT_RESISTANCE_OHM` / `MAX_EXPECTED_CURRENT_A`.
 2. Cablear según el diagrama, con masa común y el módulo alimentado a 3.3 V.
-3. `pio run -t upload` y `pio device monitor`.
+3. Cargar y monitorizar desde el host: `make upload` y `make monitor`
+   (o `pio run -t upload` / `pio device monitor`).
 4. Comprobar el arranque: debe aparecer `INA226 STATUS: OK` y lecturas cada
    500 ms; sin carga, corriente ≈ 0 y tensión de shunt ≈ 0.
 5. Contrastar tensión de bus y corriente con el multímetro.

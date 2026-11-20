@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [master, "feature/**"]
+  pull_request:
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Mismo procedimiento que en local (ver README): imagen + pio run.
+      # Se exportan UID/GID para que el usuario de la imagen coincida con
+      # el del runner y .pio/ quede escribible.
+      - name: Build Docker image
+        run: |
+          export UID="$(id -u)"
+          export GID="$(id -g)"
+          docker compose build
+
+      - name: Compile firmware
+        run: |
+          export UID="$(id -u)"
+          export GID="$(id -g)"
+          docker compose run --rm build pio run
+
+      # Tests: activar cuando exista el directorio test/
+      # - name: Run tests
+      #   run: |
+      #     export UID="$(id -u)"
+      #     export GID="$(id -g)"
+      #     docker compose run --rm build pio test
