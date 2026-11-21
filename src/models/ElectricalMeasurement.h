@@ -15,8 +15,8 @@ struct ElectricalMeasurement {
 
     bool valid        = false;      // false cuando la lectura no es fiable.
                                     // Nunca mostrar lecturas invalidas como datos reales.
-    bool overflowFlag = false;      // true cuando el INA226 indica overflow de
-                                    // registro (rango de corriente insuficiente).
+    bool overflowFlag = false;      // true cuando el INA219 indica overflow de
+                                    // registro (shunt saturado o calculo fuera de rango).
     uint32_t timestampMs = 0;       // millis() en el momento de la adquisicion
 };
 

@@ -1,25 +1,25 @@
 /**
- * Driver del sensor INA226.
+ * Driver del sensor INA219.
  *
- * Envuelve la biblioteca INA226_WE (composicion, sin herencia) y expone una
+ * Envuelve la biblioteca INA219_WE (composicion, sin herencia) y expone una
  * interfaz con verificacion de errores para el resto del firmware.
  *
  * Responsabilidades:
  *  - Inicializacion del bus I2C y del sensor
- *  - Calibracion (resistencia del shunt / rango de corriente)
+ *  - Calibracion (resistencia del shunt / rango de la PGA)
  *  - Lectura de registros con validacion
  *  - Verificacion de conexion y reporte de errores
  */
-#ifndef INA226_SENSOR_H
-#define INA226_SENSOR_H
+#ifndef INA219_SENSOR_H
+#define INA219_SENSOR_H
 
-#include <INA226_WE.h>
+#include <INA219_WE.h>
 
 #include "../models/ElectricalMeasurement.h"
 
-class INA226Sensor {
+class INA219Sensor {
 public:
-    INA226Sensor();
+    INA219Sensor();
 
     /**
      * Inicializa el bus I2C y el sensor.
@@ -41,14 +41,14 @@ public:
      */
     bool readMeasurement(ElectricalMeasurement& measurement);
 
-    /** Ultimo codigo de error I2C reportado por la biblioteca (0 = sin error). */
+    /** Ultimo codigo de error I2C de la verificacion de ACK (0 = sin error). */
     uint8_t lastI2cErrorCode() const;
 
 private:
-    INA226_WE m_ina;             // objeto de la biblioteca (composicion)
+    INA219_WE m_ina;             // objeto de la biblioteca (composicion)
     uint8_t m_address;           // direccion I2C, para verificaciones de conexion
     uint8_t m_i2cErrorCode;      // codigo de error cacheado
     bool m_initialized;          // true tras una inicializacion correcta
 };
 
-#endif  // INA226_SENSOR_H
+#endif  // INA219_SENSOR_H

@@ -10,7 +10,7 @@
 #ifndef MEASUREMENT_SERVICE_H
 #define MEASUREMENT_SERVICE_H
 
-#include "../drivers/INA226Sensor.h"
+#include "../drivers/INA219Sensor.h"
 #include "../models/ElectricalMeasurement.h"
 
 class MeasurementService {
@@ -43,7 +43,7 @@ private:
     bool attemptRecovery();
     void acquireSample();
 
-    INA226Sensor m_sensor;
+    INA219Sensor m_sensor;
     ElectricalMeasurement m_measurement;
     State m_state;
     uint32_t m_lastSampleMs;
