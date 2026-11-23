@@ -4,3 +4,9 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch/
+
+# data_manager (Python)
+data_manager/.venv/
+data_manager/captures/
+__pycache__/
+*.pyc

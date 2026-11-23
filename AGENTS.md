@@ -41,4 +41,5 @@ Guía compacta para trabajar en este repositorio: adquisición eléctrica ESP32 
 ## Estado del repositorio
 
 - El firmware compila, pero **no ha sido probado sobre hardware real**: no afirmar funcionamiento físico.
-- Pendiente de tareas futuras: medición de la tensión del generador/condensador (divisor + ADC), medición de RPM (sensor Hall/óptico con interrupciones) y exportación CSV por Serial. No implementarlas mezclando configuraciones de otras placas ESP32.
+- La salida CSV por Serial (líneas `DATA,...`) ya está implementada en `main.cpp`; la captura CSV y visualización en tiempo real viven en `data_manager/` (Python, ver su README).
+- Pendiente de tareas futuras: medición de la tensión del generador/condensador (divisor + ADC) y medición de RPM (sensor Hall/óptico con interrupciones). No implementarlas mezclando configuraciones de otras placas ESP32.

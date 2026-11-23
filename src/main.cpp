@@ -96,6 +96,29 @@ void printReport() {
     Serial.println("------------------------");
 }
 
+// Imprime una linea CSV por muestra, pensada para consumo automatico
+// (data_manager/ de este repositorio). Formato:
+//   DATA,<timestamp_ms>,<V>,<I>,<P>,<shunt_mV>,<valid>,<overflow>
+// Una lectura invalida se emite con los campos numericos vacios (nunca como
+// ceros); el consumidor debe tratarlos como NaN. Las demas lineas del reporte
+// legible se ignoran con el prefijo "DATA,".
+void printSampleCsv() {
+    const ElectricalMeasurement& m = g_measurementService.latestMeasurement();
+
+    Serial.printf("DATA,%lu,", static_cast<unsigned long>(m.timestampMs));
+    if (m.valid) {
+        Serial.printf("%.3f,%.3f,%.3f,%.3f",
+                      static_cast<double>(m.voltage_V),
+                      static_cast<double>(m.current_A),
+                      static_cast<double>(m.power_W),
+                      static_cast<double>(m.shuntVoltage_mV));
+    } else {
+        Serial.print(",,");  // voltage, current y power vacios
+        Serial.print(",");   // shunt vacio
+    }
+    Serial.printf(",%d,%d\n", m.valid ? 1 : 0, m.overflowFlag ? 1 : 0);
+}
+
 }  // namespace
 
 void setup() {
@@ -125,11 +148,13 @@ void setup() {
     Serial.println("------------------------");
 
     g_measurementService.begin();
-    printReport();  // muestra el estado inicial (OK o NOT DETECTED)
+    printReport();    // muestra el estado inicial (OK o NOT DETECTED)
+    printSampleCsv(); // linea CSV del estado inicial (muestra invalida)
 }
 
 void loop() {
     if (g_measurementService.update()) {
         printReport();
+        printSampleCsv();
     }
 }

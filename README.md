@@ -11,7 +11,9 @@ bus I2C:
 
 Firmware modular en C++17 (Arduino Framework, PlatformIO), pensado como base
 limpia y extensible para futuras ampliaciones (RPM, tensión del generador,
-CSV por Serial, almacenamiento…).
+almacenamiento…). Cada muestra se emite además como una línea CSV por Serial
+(ver "Salida CSV para data_manager") para la captura y visualización en
+tiempo real con Python (`data_manager/`).
 
 > **Nota de alcance:** este firmware mide únicamente la rama de carga.
 > La medición de la tensión del generador/condensador (divisor + ADC) y la
@@ -139,6 +141,7 @@ Voltage:           5.100 V
 Current:           0.150 A
 Power:             0.765 W
 Shunt Voltage:    15.000 mV
+DATA,12345,5.100,0.150,0.765,15.000,1,0
 ------------------------
 ```
 
@@ -158,6 +161,29 @@ Shunt Voltage:         n/a mV
 
 Una lectura inválida **nunca** se muestra como `0.000`: se marca `n/a` y el
 estado indica la causa (no detectado, error de comunicación, overflow).
+
+## Salida CSV para data_manager
+
+Junto al reporte legible, cada muestra se emite como una línea CSV con el
+prefijo `DATA,` para consumo automático (la aplicación `data_manager/` de
+este repositorio la grafica en tiempo real y la guarda en CSV):
+
+```text
+DATA,12345,5.100,0.150,0.765,15.000,1,0
+```
+
+| Campo | Descripción |
+|---|---|
+| 1 | Prefijo fijo `DATA` (el consumidor ignora el resto de líneas) |
+| 2 | `timestamp_ms`: `millis()` del ESP32 en la adquisición |
+| 3–6 | `voltage_V`, `current_A`, `power_W`, `shunt_voltage_mV` |
+| 7 | `valid` (0/1) |
+| 8 | `overflow` (0/1) |
+
+Una muestra inválida jamás se emite como ceros: los campos numéricos van
+**vacíos** (`DATA,12345,,,,,0,0`) y el consumidor debe tratarlos como NaN.
+Las líneas se emiten con el mismo disparador que el reporte legible (nueva
+muestra o cambio de estado).
 
 ## Estructura del código
 
@@ -201,8 +227,9 @@ no expone código de error I2C; ver `AGENTS.md`).
 - Con corriente negativa (VIN+/VIN− intercambiados), la potencia calculada
   como V × I también será negativa: revisar el cableado de la rama serie.
 - Por alcance de esta versión: sin ADC/divisor para la tensión del
-  generador, sin RPM, sin salida CSV (tareas posteriores), sin Wi-Fi/MQTT
-  ni almacenamiento persistente.
+  generador, sin RPM, sin Wi-Fi/MQTT ni almacenamiento persistente. La
+  captura CSV y la visualización en tiempo real viven en `data_manager/`
+  (Python), que consume la salida `DATA,...` por Serial.
 
 ## Procedimiento de verificación del hardware
 
